@@ -1,0 +1,102 @@
+---
+title: "Manipulating and Using Spatial Data"
+output: html_document
+date: "2024-01-11"
+---
+
+```{r setup, include=FALSE, message=FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE)
+
+# visualization
+library(mapview)
+
+# significance tests and data exploration
+library(tidyverse) # suite of packages for data manipulation and exploration
+library(here) # makes it easy to call files despite differences in file pathways
+library(lubridate) # makes it easy to clean column data
+
+# spatial analysis
+library(sf) # sf = simple feature, the package to use to do GIS in R
+library(tmap) # useful for different visualizations and maps
+library(gstat) # does spatial stats
+library(stars) # one method of opening and using raster data
+library(terra) # another method of opening and using raster data
+library(tidyterra) # allows for tidyverse and ggplot manipulations of terra objects
+```
+
+
+# Opening and exploring data
+
+## Open soil data (spatial and aspatial)
+
+```{r}
+# spatial data comes to us as vector (points, lines, polygons) or raster (continuous grid) data and has a location or geographic reference associated with the files (location), aspatial data is any data that does not have a spatial component or may have that data but not stored in a spatial format (country name, plant name, leaf size, etc).
+
+#opening soil trait csv
+soils <- read_csv(here("data", "soil_traits.csv")) # opening your soil trait data (aspatial data)
+
+# open sampling location spatial data
+locations_sf <- read_sf(here("data", "sample_locations.shp"))
+
+# or can open if you have a csv with lat/lon coordinates and you know the projection of the data
+locations <- read_csv(here("data", "sample_locations.csv")) %>% # open the csv file
+  st_as_sf(coords = c("longitude", "latitude")) %>% # tell code to read this file as a sf dataset using the "longitude" and "latitude" columns as coordinates
+  st_set_crs(value = 4326) # set the data projection to coordinate reference system code 4326 (WGS 1984)
+
+# joining the data files so that you have traits alongside spatial location
+soils_sf <- soils %>% # call the soil trait data
+  merge(locations_sf) # merge the data.frame style objects together (by default uses common column names)
+```
+
+## Open Elevation Raster Data
+
+### Method 1: `{stars}` package
+
+```{r}
+# Opening the Digital Elevation Model file
+dem_stars <- read_stars(here("data", "dem.tif"))
+
+dem_stars # call the stars raster object to see how R stores the data (will contrast to {terra})
+
+# plot the file to see how large it is
+ggplot()+
+  geom_stars(data = dem_stars, aes(x = x, y = y)) # geom_stars() works to visualize stars objects
+
+
+# opening vector for cropping data
+bbox <- read_sf(here("data", "bbox.shp")) #read in bounding box file (or the boundary used to clip the raster data)
+
+# Map both files to show how much will be cropped out
+ggplot()+
+  geom_stars(data = dem_stars, aes(x = x, y = y)) + # geom_stars() works to visualize stars objects
+  geom_sf(data = bbox, fill = NA, color = "black", linewidth = 2) # geom_sf lets us use vector files as 
+
+## cropping data
+dem_stars <- read_stars(here("data", "dem.tif")) %>% # read in dem 
+  st_crop(y = st_bbox(bbox))  #crop to bounding box
+
+## plotting cropped raster
+ggplot()+
+  geom_stars(data = dem_stars, aes(x = x, y = y)) + # geom_stars() works to visualize stars objects
+  coord_sf(crs = 4326) # sets the aspect ratio of the map to follow spatial geometry (aka no default stretching)
+```
+
+
+### Method 2: `{terra}` package
+```{r}
+dem_terra <- rast(here("data", "dem.tif"))
+
+dem_terra # call terra SpatRast object to compare to the stars object
+
+#crop to the same area as stars
+
+bbox_vect <- vect(here("data", "bbox.shp")) # open bounding box as SpatVect object
+
+terra_crop <- terra::crop(dem_terra, bbox_vect) # crop raster to boundary
+
+# plot the resulting raster
+ggplot()+
+  geom_spatraster(data = terra_crop) #geom_spatraster comes from tidyterra (notice no need for setting aspect ratio)
+```
+
+
