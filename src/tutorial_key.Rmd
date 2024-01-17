@@ -10,10 +10,9 @@ knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE)
 # visualization
 library(mapview)
 
-# significance tests and data exploration
+# data exploration and manipulation
 library(tidyverse) # suite of packages for data manipulation and exploration
 library(here) # makes it easy to call files despite differences in file pathways
-library(lubridate) # makes it easy to clean column data
 
 # spatial analysis
 library(sf) # sf = simple feature, the package to use to do GIS in R
@@ -62,7 +61,6 @@ dem_stars # call the stars raster object to see how R stores the data (will cont
 ggplot()+
   geom_stars(data = dem_stars, aes(x = x, y = y)) # geom_stars() works to visualize stars objects
 
-
 # opening vector for cropping data
 bbox <- read_sf(here("data", "bbox.shp")) #read in bounding box file (or the boundary used to clip the raster data)
 
@@ -99,4 +97,17 @@ ggplot()+
   geom_spatraster(data = terra_crop) #geom_spatraster comes from tidyterra (notice no need for setting aspect ratio)
 ```
 
+## Let's open a few other raster layers
+
+```{r}
+#ndvi
+
+ndvi <- read_stars(here("data", "2022_03_22_ndvi.tif"))
+
+#mARI
+mari <- read_stars(here("data", "03_22_mari_avg.tif"))
+```
+
+
+# Merging and Extracting Raster Data
 
