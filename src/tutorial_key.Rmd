@@ -16,7 +16,6 @@ library(here) # makes it easy to call files despite differences in file pathways
 
 # spatial analysis
 library(sf) # sf = simple feature, the package to use to do GIS in R
-library(tmap) # useful for different visualizations and maps
 library(gstat) # does spatial stats
 library(stars) # one method of opening and using raster data
 library(terra) # another method of opening and using raster data
@@ -59,7 +58,7 @@ soils_sf <- locations_sf %>% # call the soil trait data
 dem_stars <- read_stars(here("data", "dem.tif")) %>% 
   st_warp(crs = 4326)
 
-dem_stars # call the stars raster object to see how R stores the data (will contrast to {terra})
+# call the stars raster object to see how R stores the data (will contrast to {terra})
 
 # plot the file to see how large it is
 ggplot()+
@@ -121,7 +120,7 @@ mari_stars <- read_stars(here("data", "03_22_mari_avg.tif")) %>%
 
 ```{r}
 # merge the raster files using `c()`
-rast_merge <- c(ndvi_stars, mari_stars, dem_stars)
+#rast_merge <- c(ndvi_stars, mari_stars, dem_stars)
 
 ## we get an error? why? examine the files ndvi_stars and dem_stars
 
@@ -132,15 +131,66 @@ dem_warp <- dem_stars %>%
 ## call to make sure it worked
 
 ## attempt merge again
-rast_merge <- c(ndvi_stars, mari_stars, dem_warp)
+rast_all <- c(ndvi_stars, mari_stars, dem_warp)
 ```
 
+## Manipulating `{stars}` using `{tidyverse}` and `{sf}`
+
+ Many tidyverse and sf functions work with stars objects here are a few examples of what can be done
+ 
+ More Examples with explanations can be found here: https://tmieno2.github.io/R-as-GIS-for-Economists/stars-basics.html
+
+```{r}
+# renaming attributes
+rast_r <- rast_all %>% 
+  setNames(c("NDVI", "mARI", "Elevation"))
+
+# merging attributes into dimensions
+rast_merge <- rast_r %>% 
+  merge()
+
+# spliting dimensions
+rast_sp <- rast_merge %>% 
+  split()
+
+# filter (dimensions)
+rast_f <- rast_r %>% 
+  filter(y < 34.417)
+
+# select (attributes)
+rast_sl <- rast_r %>% 
+  select(NDVI, Elevation)
+
+# reprojecting and transforming data
+rast_w <- rast_r %>% 
+  st_warp(crs = 32611)
+
+# plotting single or all attributes
+# By default only first attribute gets plotted with plot()
+plot(rast_r)
+plot(rast_r["mARI",,])
+plot(rast_r["Elevation",,])
+
+# or you can added plot() at the end of a data manipulation to quickly visualize the changes
+rast_merge <- rast_r %>% 
+  merge() %>% 
+  plot()
+
+rast_f <- rast_r %>% 
+  filter(y < 34.417) %>% 
+  plot()
+```
 
 
 # Extracting Raster Data
 
 ```{r}
+rast_extract <- rast_r %>% 
+  st_extract(soils_sf) %>% 
+  st_drop_geometry()
 
+soils_rast <- soils_sf %>% 
+  bind_cols(rast_extract) 
 ```
 
 # Making Maps
