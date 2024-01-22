@@ -23,14 +23,16 @@ library(terra) # another method of opening and using raster data
 library(tidyterra) # allows for tidyverse and ggplot manipulations of terra objects
 ```
 
+new chunk = ctrl + alt + i / cmd+option+i
+pipe = cmd + shft + m / ctrl + shft + m
 
 # Opening and exploring data
 
 ## Open soil data (spatial and aspatial)
 
-```{r}
-# spatial data comes to us as vector (points, lines, polygons) or raster (continuous grid) data and has a location or geographic reference associated with the files (location), aspatial data is any data that does not have a spatial component or may have that data but not stored in a spatial format (country name, plant name, leaf size, etc).
+Spatial data comes to us as vector (points, lines, polygons) or raster (continuous grid) data and has a location or geographic reference associated with the files (location), aspatial data is any data that does not have a spatial component (country name, plant name, leaf size, etc).
 
+```{r}
 #opening soil trait csv
 soils <- read_csv(here("data", "soil_traits.csv")) # opening your soil trait data (aspatial data)
 
@@ -43,8 +45,9 @@ locations <- read_csv(here("data", "sample_locations.csv")) %>% # open the csv f
   st_set_crs(value = 4326) # set the data projection to coordinate reference system code 4326 (WGS 1984)
 
 # joining the data files so that you have traits alongside spatial location
-soils_sf <- soils %>% # call the soil trait data
-  merge(locations_sf) # merge the data.frame style objects together (by default uses common column names)
+soils_sf <- locations_sf %>% # call the soil trait data
+  merge(soils) %>% # merge the data.frame style objects together (by default uses common column names)
+  st_set_crs(value = 4326)
 ```
 
 ## Open Elevation Raster Data
@@ -53,7 +56,8 @@ soils_sf <- soils %>% # call the soil trait data
 
 ```{r}
 # Opening the Digital Elevation Model file
-dem_stars <- read_stars(here("data", "dem.tif"))
+dem_stars <- read_stars(here("data", "dem.tif")) %>% 
+  st_warp(crs = 4326)
 
 dem_stars # call the stars raster object to see how R stores the data (will contrast to {terra})
 
@@ -84,7 +88,7 @@ ggplot()+
 ```{r}
 dem_terra <- rast(here("data", "dem.tif"))
 
-dem_terra # call terra SpatRast object to compare to the stars object
+# call terra SpatRast object to compare to the stars object
 
 #crop to the same area as stars
 
@@ -97,17 +101,72 @@ ggplot()+
   geom_spatraster(data = terra_crop) #geom_spatraster comes from tidyterra (notice no need for setting aspect ratio)
 ```
 
+Based on my preference and experience with data manipulations with one package over the other, the rest of the tutorial uses `{stars}`
+
 ## Let's open a few other raster layers
 
 ```{r}
 #ndvi
-
-ndvi <- read_stars(here("data", "2022_03_22_ndvi.tif"))
+ndvi_stars <- read_stars(here("data", "2022_03_22_ndvi.tif")) %>% 
+  st_warp(crs = 4326)
 
 #mARI
-mari <- read_stars(here("data", "03_22_mari_avg.tif"))
+mari_stars <- read_stars(here("data", "03_22_mari_avg.tif")) %>% 
+  st_warp(crs = 4326)
+```
+
+# Merging and Manipulating Raster Data
+
+## Merging mulitple raster files
+
+```{r}
+# merge the raster files using `c()`
+rast_merge <- c(ndvi_stars, mari_stars, dem_stars)
+
+## we get an error? why? examine the files ndvi_stars and dem_stars
+
+## make the dimensions match between the files using `st_warp()` (a spatial resample/transform function)
+dem_warp <- dem_stars %>% 
+  st_warp(dest = ndvi_stars)
+
+## call to make sure it worked
+
+## attempt merge again
+rast_merge <- c(ndvi_stars, mari_stars, dem_warp)
 ```
 
 
-# Merging and Extracting Raster Data
+
+# Extracting Raster Data
+
+```{r}
+
+```
+
+# Making Maps
+
+## `ggplot()` maps 
+
+```{r}
+ggplot() +
+  geom_stars(data = dem_stars, aes(x = x, y = y, fill = dem.tif), na.action = na.omit) +
+  scale_fill_gradientn(colors = c("white", "bisque4", "black")) +
+  geom_sf(data = soils_rast, aes(color = electro_cond_mS_per_cm, shape = landcover))
+  
+
+# Adjust the scale if you'd like
+ggplot() +
+  geom_stars(data = dem_stars, aes(x = x, y = y, fill = dem.tif), na.action = na.omit) +
+  scale_fill_gradientn(colors = c("white", "bisque4", "black")) +
+  scale_y_continuous(limits = c(34.411, 34.417)) +
+  scale_x_continuous(limits = c(-119.878, -119.873))+
+  geom_sf(data = soils_rast, aes(color = electro_cond_mS_per_cm, shape = landcover))
+```
+
+## Interactive maps w/ `mapview()` (works in RStudio and HTML files)
+
+```{r}
+mapview(dem_stars) + 
+  mapview(soils_rast)
+```
 
