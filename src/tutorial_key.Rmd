@@ -36,7 +36,8 @@ Spatial data comes to us as vector (points, lines, polygons) or raster (continuo
 soils <- read_csv(here("data", "soil_traits.csv")) # opening your soil trait data (aspatial data)
 
 # open sampling location spatial data
-locations_sf <- read_sf(here("data", "sample_locations.shp"))
+locations_sf <- read_sf(here("data", "sample_locations.shp")) %>% 
+  st_set_crs(value = 4326)
 
 # or can open if you have a csv with lat/lon coordinates and you know the projection of the data
 locations <- read_csv(here("data", "sample_locations.csv")) %>% # open the csv file
@@ -45,8 +46,7 @@ locations <- read_csv(here("data", "sample_locations.csv")) %>% # open the csv f
 
 # joining the data files so that you have traits alongside spatial location
 soils_sf <- locations_sf %>% # call the soil trait data
-  merge(soils) %>% # merge the data.frame style objects together (by default uses common column names)
-  st_set_crs(value = 4326)
+  merge(soils) # merge the data.frame style objects together (by default uses common column names)
 ```
 
 ## Open Elevation Raster Data
@@ -220,3 +220,5 @@ mapview(dem_stars) +
   mapview(soils_rast)
 ```
 
+
+Potential additional topics: Spatial Interpolation, multidate raster manipulation examples, 
