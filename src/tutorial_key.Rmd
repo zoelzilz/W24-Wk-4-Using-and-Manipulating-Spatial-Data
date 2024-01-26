@@ -4,6 +4,16 @@ output: html_document
 date: "2024-01-11"
 ---
 
+Required packages: Copy and paste in console as necessary
+install.packages("here")
+install.packages("sf")
+install.packages("mapview")
+install.packages("gstat")
+install.packages("stars")
+install.packages("terra")
+install.packages("tidyterra")
+
+
 ```{r setup, include=FALSE, message=FALSE, warning = FALSE}
 knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning = FALSE)
 
@@ -55,8 +65,8 @@ soils_sf <- locations_sf %>% # call the soil trait data
 
 ```{r}
 # Opening the Digital Elevation Model file
-dem_stars <- read_stars(here("data", "dem.tif")) %>% 
-  st_warp(crs = 4326)
+dem_stars <- read_stars(here("data", "dem.tif")) %>% # open and read a stars object
+  st_warp(crs = 4326) # set the coordinate reference system
 
 # call the stars raster object to see how R stores the data (will contrast to {terra})
 
@@ -85,7 +95,7 @@ ggplot()+
 
 ### Method 2: `{terra}` package
 ```{r}
-dem_terra <- rast(here("data", "dem.tif"))
+dem_terra <- rast(here("data", "dem.tif")) # open a SpatRast object
 
 # call terra SpatRast object to compare to the stars object
 
@@ -106,11 +116,11 @@ Based on my preference and experience with data manipulations with one package o
 
 ```{r}
 #ndvi
-ndvi_stars <- read_stars(here("data", "2022_03_22_ndvi.tif")) %>% 
+ndvi_stars <- read_stars(here("data", "2022_03_22_ndvi.tif")) %>% # open a normalized difference vegetation index file 
   st_warp(crs = 4326)
 
 #mARI
-mari_stars <- read_stars(here("data", "03_22_mari_avg.tif")) %>% 
+mari_stars <- read_stars(here("data", "03_22_mari_avg.tif")) %>% # open a modified anthocyanin reflectance index file
   st_warp(crs = 4326)
 ```
 
@@ -125,8 +135,8 @@ mari_stars <- read_stars(here("data", "03_22_mari_avg.tif")) %>%
 ## we get an error? why? examine the files ndvi_stars and dem_stars
 
 ## make the dimensions match between the files using `st_warp()` (a spatial resample/transform function)
-dem_warp <- dem_stars %>% 
-  st_warp(dest = ndvi_stars)
+dem_warp <- dem_stars %>% # file we want to transform
+  st_warp(dest = ndvi_stars) # target format
 
 ## call to make sure it worked
 
@@ -185,12 +195,15 @@ rast_f <- rast_r %>%
 # Extracting Raster Data
 
 ```{r}
-rast_extract <- rast_r %>% 
-  st_extract(soils_sf) %>% 
-  st_drop_geometry()
+rast_extract <- rast_r %>%  # call renamed raster file
+  st_extract(soils_sf) %>% # extract data based on point location
+  st_drop_geometry() # convert from sf to data frame
 
-soils_rast <- soils_sf %>% 
-  bind_cols(rast_extract) 
+soils_rast <- soils_sf %>% # call sf file
+  bind_cols(rast_extract) # add extracted columns to sf file
+
+# view data
+soils_rast
 ```
 
 # Making Maps
@@ -221,4 +234,3 @@ mapview(dem_stars) +
 ```
 
 
-Potential additional topics: Spatial Interpolation, multidate raster manipulation examples, 
