@@ -1,0 +1,195 @@
+---
+title: "spatial_tutorial"
+output: html_document
+date: "2024-01-29"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# visualization
+library(mapview)
+
+# data exploration and manipulation
+library(tidyverse) # suite of packages for data manipulation and exploration
+library(here) # makes it easy to call files despite differences in file pathways
+
+# spatial analysis
+library(sf) # sf = simple feature, the package to use to do GIS in R
+library(gstat) # does spatial stats
+library(stars) # one method of opening and using raster data
+library(terra) # another method of opening and using raster data
+library(tidyterra) # allows for tidyverse and ggplot manipulations of terra objects
+library(cubelyr)
+```
+
+we have lots of data on soil salinity, in different forms, some explicitly spatial and some not
+
+sf = simple feature (spatial)
+
+```{r read in data}
+soils <- read_csv(here("data", "soil_traits.csv"))
+
+locations_sf <- read_sf(here("data", "sample_locations.shp")) %>% 
+  st_set_crs(value = 4326) # proper geo projection is WGS 1984 - lat/lot as degrees, min, sec
+# geometry is a sticky item - sticks no matter how you manipulate the data
+
+# join spatial information to nonspatial
+
+soils_sf <- locations_sf %>% 
+  merge(soils) # merges by commonly names columns by default, recommended for this to avoid multiple columns showing up in final dataset
+
+
+```
+# raster data
+## stars methods
+```{r raster data with stars method}
+# alternative to raster package, not a standalone replacement, but joined in with sf can do almost everything you would have done with raster
+
+# purely for raster data
+
+dem_stars <- read_stars(here("data", "dem.tif")) #%>%  #type into console to view dimensions, offset (starting point), delta = spatial resolition, attribute (ours is dem.tif)
+# if you wanted to check ??or change?? coord system
+  #st_warp(crs = 4236)
+
+
+
+# visualize
+ggplot()+
+  geom_stars(data = dem_stars, aes(x = x, y = y))
+
+
+# might want to crop it using a boundary shapefile (that alreday exists?)
+
+bbox <- read_sf(here("data", "bbox.shp")) # where did this shapefile come from?
+# in arc, made a bounding box and saved as a file
+# if you know the coords of your corners, can make a csv and save as a polygon in sf
+
+dem_stars <- dem_stars %>% 
+  st_crop(y = st_bbox(bbox)) #st = sf package, st_bbox is command to find boundary of object (which we caleld bbox)
+  
+```
+
+
+## terra methods
+```{r raster data with terra method}
+# terra was meant to replace raster fully
+# has native options for both raster data and vector data
+
+dem_terra <- rast(here("data", "dem.tif")) # terra option for opening raster file
+
+# saves it as SpatRaster class file
+
+# cropping
+bbox_terra <- vect(here("data", "bbox.shp")) # vect is how to open shapefiles
+
+# has it's own native cropping
+terra_crop <- terra::crop(dem_terra, bbox_terra)
+
+# to use terra objects in ggplot (or tidyverse), you need to have tidyterra installed!
+
+ggplot()+
+  geom_spatraster(data = terra_crop)
+```
+
+# rest of the tutorial will be in stars
+## opening a few more raster layers, like veg indices
+```{r some other rasters}
+
+ndvi_stars <- read_stars(here("data", "2022_03_22_ndvi.tif")) %>% 
+  st_warp(crs = 4326) # checking projection (not defining projection if it already has one)
+
+mari_stars <- read_stars(here("data", "03_22_mari_avg.tif")) %>%  # red pigments in plants, stress that they have
+  st_warp(crs = 4326)
+```
+
+crs is how we mathematically make a globe into a flat shape, different projections tell us what math we used to preserve the shape of the earth when translating into a flat surface
+eg wgs84 ensures that we still have lat/lot rather than a meter based coordinate, most gps data will be collected in this
+
+## helpful to merge all of our raster files together
+```{r merging raster files}
+
+#rast_merge <- c(ndvi_stars, mari_stars, dem_stars) # won't work, we have to specify a parameter (spatial resolutions are different so it doesn't know how to align the data sets)
+
+# we can use stwarp
+dem_warp <- dem_stars %>% 
+  st_warp(dest = ndvi_stars) # tell it what you want the desination of the warping to be, tell it to match ndvi
+#will reproject and regrid!
+
+rast_merge <- c(ndvi_stars, mari_stars, dem_warp) # replace dem_stars with new dem_warp
+
+rast_merge
+
+```
+
+# lets fuck with the data
+
+```{r manipulations of raster_merge using sf and tidyverse}
+# rename raster attributions to be easier to type using raster_merge
+
+rast_r <- rast_merge %>% 
+  setNames(c("NDVI", "mARI", "Elevation")) #%>% 
+ # plot # will plot out first attribute
+
+plot(rast_r[,,2]) # not working but should??
+
+# what if you didn't want to use files separate and wanted them to be another dimension on your dataset?
+
+rast_m <- rast_r %>% 
+  merge()
+
+# now we only have one attribute that has the combined names, but if we look at dimension, we have all three attributions
+# now we have layers, used ot be raster stack
+
+plot(rast_m) # now we can see all three attributes
+# can only filter when it's merged like this, can't do it when it's separate because there's no way to call one particular attribute
+# eg for a range of ndvi's
+
+rast_s <- rast_m %>% 
+  split() # how we can pull the attributes apart again
+
+plot(rast_m[,,,2]) #plot 2nd attribute
+
+# filter now (only based on dimensions, not attributes)
+# we want only less than 34.417
+
+rast_f <- rast_r %>% 
+  filter(y < 34.417)
+
+plot(rast_f)
+
+# can specify which attribute to plot with brackets
+
+```
+# next we will extract rasters
+
+```{r extraction of rasters}
+
+rast_extract <- rast_r %>% 
+  st_extract(soils_sf) %>% 
+  st_drop_geometry()  # want to avoid sticky redundancy with geometry layer to need to convert to plain dataframe without duplicate geometries
+
+# now we will join with soils simple feature
+
+soils_rast <- soils_sf %>% 
+  bind_cols(rast_extract) # different way to combine things when there is no default matching col names
+```
+
+# lets make some simple maps with ggplot
+
+```{r maps!}
+ggplot()+ # have to put things in layers from most area covered to least
+  geom_stars(data = dem_stars, #base map
+             aes(x = x, y = y,  fill = dem.tif),
+             na.action = na.omit) +
+  scale_fill_gradientn(colors = c("white", "bisque4", "black")) # don't forget the n!
+  #geom_sf(data = soils_rast, # point data
+   #       aes(color = electro_cond_mS_per_cm, shape = landcover)) #don't have to specify x and y because geom sf looks for it
+
+
+# fully interactive map!
+mapview(dem_stars)+ #works in rstudio and html files
+  mapview(soils_rast)
+
+```
+
